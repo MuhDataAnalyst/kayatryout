@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="tr" id="html-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaya Metal - B2B Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .zoom-img { transition: transform 0.4s ease; }
+        .zoom-container:hover .zoom-img { transform: scale(1.2); }
+        body { transition: direction 0.3s ease; }
+        
+        /* Print layout for when the customer saves their order as PDF */
+        @media print {
+            body { background: white !important; color: black !important; }
+            header, .no-print, #toast { display: none !important; }
+            main { overflow: visible !important; }
+            .border-slate-200 { border-color: #000 !important; }
+            input, select { border: none !important; background: transparent !important; -webkit-appearance: none; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded shadow-2xl transition-all duration-300 -translate-y-24 opacity-0 z-50 font-bold flex items-center gap-2">
+        <span id="toast-msg"></span>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-lg z-20">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-3xl font-black text-amber-500 tracking-wider">KAYA METAL</h1>
+                <p class="text-sm text-slate-400 font-mono" id="t-subtitle">B2B Müşteri Sipariş Portalı</p>
+            </div>
+            
+            <div class="flex items-center gap-6 w-full md:w-auto">
+                
+                <!-- Language Text Links -->
+                <div class="flex gap-3 text-sm font-bold text-slate-400 font-mono tracking-widest cursor-pointer no-print">
+                    <span onclick="changeLanguage('tr')" id="lang-tr" class="text-amber-500 hover:text-white transition">TR</span>|
+                    <span onclick="changeLanguage('en')" id="lang-en" class="hover:text-white transition">EN</span>|
+                    <span onclick="changeLanguage('ar')" id="lang-ar" class="hover:text-white transition">AR</span>
+                </div>
+
+                <!-- Search Bar -->
+                <input type="text" id="search-input" onkeyup="renderMatrix()" class="bg-slate-800 border border-slate-700 text-white rounded px-4 py-2 focus:border-amber-500 outline-none w-full md:w-56 placeholder-slate-500 no-print" placeholder="Ürün veya SKU Ara...">
+                
+                <!-- Action Buttons -->
+                <div class="flex gap-2 no-print">
+                    <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded transition" title="PDF Olarak Kaydet">
+                        🖨️
+                    </button>
+                    <button onclick="submitOrder()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-6 rounded shadow-lg whitespace-nowrap transition" id="t-submit-btn">
+                        Talebi Gönder
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Matrix Table -->
+    <main class="flex-1 max-w-7xl mx-auto w-full p-4 overflow-hidden flex flex-col">
+        <div class="bg-white border border-slate-200 rounded-lg shadow-sm flex-1 flex flex-col overflow-hidden">
+            
+            <!-- Sticky Table Header -->
+            <div class="grid grid-cols-12 gap-4 bg-slate-100 border-b border-slate-200 p-4 font-bold text-xs md:text-sm text-slate-600 uppercase tracking-wider sticky top-0 z-10 text-center md:text-left shadow-sm">
+                <div class="col-span-1 hidden md:block" id="t-col-img">Görsel</div>
+                <div class="col-span-12 md:col-span-3" id="t-col-prod">Ürün & Koli Detayı</div>
+                <div class="col-span-12 md:col-span-3" id="t-col-sku">Ölçü Seçimi & SKU</div>
+                <div class="col-span-12 md:col-span-3" id="t-col-note">Özel Not</div>
+                <div class="col-span-12 md:col-span-2 text-center" id="t-col-qty">Talep Miktarı</div>
+            </div>
+
+            <!-- Scrollable Products Container -->
+            <div id="matrix-body" class="overflow-y-auto flex-1 p-2 pb-12">
+                <!-- JavaScript rows -->
+            </div>
+        </div>
+        
+        <!-- Factory Contact Footer -->
+        <div class="text-center py-3 text-xs font-bold text-slate-400 no-print">
+            📍 Kaya Metal Sanayi • Zübeyde Sok. No:4 Arnavutköy / İstanbul &nbsp;|&nbsp; 📞 Destek: +90 555 123 4567 &nbsp;|&nbsp; ✉️ satis@kayametal.com
+        </div>
+    </main>
+
+    <script>
+        const translations = {
+            tr: { subtitle: "B2B Müşteri Sipariş Portalı", searchPlaceholder: "Ürün veya SKU Ara...", submitBtn: "Talebi Gönder", colImg: "Görsel", colProd: "Ürün & Koli Detayı", colSku: "Ölçü Seçimi & SKU", colNote: "Özel Not (Opsiyonel)", colQty: "Talep Miktarı", notePlaceholder: "Malzeme/Sarım notu...", boxText: "Koli İçi:", successMsg: "Sipariş talebiniz başarıyla fabrikaya iletildi!", dir: "ltr" },
+            en: { subtitle: "B2B Customer Order Portal", searchPlaceholder: "Search Product or SKU...", submitBtn: "Submit Request", colImg: "Image", colProd: "Product & Box Details", colSku: "Select Size & SKU", colNote: "Special Note (Optional)", colQty: "Order Quantity", notePlaceholder: "Material/Thread notes...", boxText: "Box Qty:", successMsg: "Your order request has been successfully sent to the factory!", dir: "ltr" },
+            ar: { subtitle: "بوابة طلبات العملاء B2B", searchPlaceholder: "ابحث عن منتج أو SKU...", submitBtn: "إرسال الطلب", colImg: "صورة", colProd: "المنتج وتفاصيل الصندوق", colSku: "تحديد الحجم و SKU", colNote: "ملاحظة خاصة (اختياري)", colQty: "الكمية المطلوبة", notePlaceholder: "ملاحظات المواد...", boxText: "كمية الصندوق:", successMsg: "تم إرسال طلبك بنجاح إلى المصنع!", dir: "rtl" }
+        };
+
+        let currentLang = 'tr';
+
+        const catalog = [
+            { name: { tr: 'İç Dişli İnsert', en: 'Female Threaded Insert', ar: 'إدراج لولبي داخلي' }, boxQty: 250, image: 'https://www.kayafittings.com/images/uploads/n_0dec9d838fa8af4057fad43e38f13a09.jpg', variants: [{ sku: '10001020', size: '1/2"' }, { sku: '10001025', size: '3/4"' }, { sku: '10001032', size: '1"' }] },
+            { name: { tr: 'Dış Dişli İnsört', en: 'Male Threaded Insert', ar: 'إدراج لولبي خارجي' }, boxQty: 300, image: 'https://www.kayafittings.com/images/uploads/n_a3605b56d90450e9943d57ad5fb88eb0.jpg', variants: [{ sku: '10002020', size: '1/2"' }, { sku: '10002025', size: '3/4"' }, { sku: '10002032', size: '1"' }] },
+            { name: { tr: 'Su Sayacı Rekor Takımı', en: 'Water Meter Union Set', ar: 'مجموعة وصلة عداد المياه' }, boxQty: 100, image: 'https://www.kayafittings.com/images/uploads/n_05bf1d8972affe24427d3ba762501cc3.jpg', variants: [{ sku: '10009015', size: '1/2" - DN 15' }, { sku: '10009020', size: '3/4" - DN 20' }] },
+            { name: { tr: 'Hareketli Nipel', en: 'Swivel Nipple', ar: 'حلمة دوارة' }, boxQty: 400, image: 'https://www.kayafittings.com/images/uploads/n_ecad4e5f5e3607ca5f847f4a1b881964.jpg', variants: [{ sku: '10011020', size: '1/2"' }, { sku: '10011025', size: '3/4"' }] }
+        ];
+
+        function changeLanguage(lang) {
+            currentLang = lang;
+            const t = translations[currentLang];
+
+            document.getElementById('html-root').setAttribute('dir', t.dir);
+            
+            // Update UI Link Colors
+            ['tr', 'en', 'ar'].forEach(l => {
+                document.getElementById(`lang-${l}`).className = l === lang 
+                    ? "text-amber-500 hover:text-white transition" 
+                    : "text-slate-400 hover:text-white transition";
+            });
+
+            document.getElementById('t-subtitle').innerText = t.subtitle;
+            document.getElementById('search-input').placeholder = t.searchPlaceholder;
+            document.getElementById('t-submit-btn').innerText = t.submitBtn;
+            document.getElementById('t-col-img').innerText = t.colImg;
+            document.getElementById('t-col-prod').innerText = t.colProd;
+            document.getElementById('t-col-sku').innerText = t.colSku;
+            document.getElementById('t-col-note').innerText = t.colNote;
+            document.getElementById('t-col-qty').innerText = t.colQty;
+
+            renderMatrix();
+        }
+
+        function highlightRow(idx) {
+            const input = document.getElementById(`qty-${idx}`);
+            const row = document.getElementById(`row-${idx}`);
+            if(input.value > 0) {
+                row.classList.add('bg-amber-50');
+                input.classList.add('border-amber-500', 'bg-white');
+            } else {
+                row.classList.remove('bg-amber-50');
+                input.classList.remove('border-amber-500', 'bg-white');
+            }
+        }
+
+        function renderMatrix() {
+            const container = document.getElementById('matrix-body');
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const t = translations[currentLang];
+            container.innerHTML = '';
+
+            catalog.forEach((prod, idx) => {
+                const prodName = prod.name[currentLang];
+                const skuMatch = prod.variants.some(v => v.sku.includes(searchTerm));
+                if (!prodName.toLowerCase().includes(searchTerm) && !skuMatch) return;
+
+                let optionsHtml = '';
+                prod.variants.forEach(v => {
+                    optionsHtml += `<option value="${v.sku}">${v.size}</option>`;
+                });
+
+                const row = document.createElement('div');
+                row.id = `row-${idx}`;
+                row.className = "grid grid-cols-12 gap-4 border-b border-slate-200 p-4 items-center hover:bg-slate-50 transition";
+                row.innerHTML = `
+                    <div class="col-span-12 md:col-span-1 flex justify-center">
+                        <div class="w-16 h-16 border border-slate-300 rounded bg-white zoom-container">
+                            <img src="${prod.image}" class="w-full h-full object-cover zoom-img p-1">
+                        </div>
+                    </div>
+                    <div class="col-span-12 md:col-span-3">
+                        <h3 class="font-bold text-lg text-slate-800">${prodName}</h3>
+                        <span class="inline-block mt-1 px-2 py-1 bg-slate-200 text-slate-600 text-xs font-bold rounded no-print">
+                            📦 ${t.boxText} ${prod.boxQty}
+                        </span>
+                    </div>
+                    <div class="col-span-12 md:col-span-3">
+                        <select id="select-${idx}" onchange="document.getElementById('sku-disp-${idx}').innerText = this.value" class="w-full border border-slate-300 rounded p-2 focus:border-amber-500 bg-white font-bold cursor-pointer mb-1 outline-none text-slate-700">
+                            ${optionsHtml}
+                        </select>
+                        <p class="text-xs text-slate-500 font-mono">SKU: <span id="sku-disp-${idx}">${prod.variants[0].sku}</span></p>
+                    </div>
+                    <div class="col-span-12 md:col-span-3">
+                        <input type="text" placeholder="${t.notePlaceholder}" class="w-full border border-slate-300 rounded p-2 focus:border-amber-500 outline-none text-slate-700">
+                    </div>
+                    <div class="col-span-12 md:col-span-2 flex justify-center">
+                        <input type="number" id="qty-${idx}" oninput="highlightRow(${idx})" min="0" placeholder="0" class="w-24 border-2 border-slate-300 rounded p-2 text-center font-bold text-lg focus:outline-none text-slate-800 transition">
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function submitOrder() {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = "✓ " + translations[currentLang].successMsg;
+            toast.classList.remove('-translate-y-24', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-24', 'opacity-0');
+            }, 3000);
+        }
+
+        renderMatrix();
+    </script>
+</body>
+</html>
